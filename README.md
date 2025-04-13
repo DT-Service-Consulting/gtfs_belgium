@@ -82,7 +82,7 @@ GTFS_TO_NETWORK/
 │   ├── belgium_P.pkl # P-Graph
 │   ├── belgium.pkl # Original L-Graph
 │   └── chicago.pkl # Original L-Graph
-│
+│   └── gtc_data.pkl # Consists of the GTC output│
 ├── sqlite/
 │   ├── belgium.sqlite 
 │   └── chicago.sqlite
