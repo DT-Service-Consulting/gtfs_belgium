@@ -73,6 +73,8 @@ GTFS_TO_NETWORK/
 │   ├── DeleteNodes&Routes.ipynb # Notebook focussing on cleaning the L-Graph by deleting unwanted nodes and routes
 │   ├── MergeRoutes.ipynb # Notebook which merges direct routes with the actual path. 
 │   └── P-Space.ipynb # Notebook to work on the P-Graph being generated from the cleaned L-Graph
+│   └── TopologicalIndicators_Belgium.ipynb # Notebook to work on the topological indicators of the Belgian Railways
+│   └── PTopologicalIndicators_Netherlands.ipynb # Notebook to work on the topological indicators of the Dutch Railways
 │
 ├── osmread-master/ # Includes the OSM (OpenStreetMap) reading utility for handling geographic data.
 │
@@ -80,9 +82,10 @@ GTFS_TO_NETWORK/
 │   ├── belgium_nodesCleaned.pkl # L-Graph after cleaning the nodes
 │   ├── belgium_routesCleaned.pkl # # L-Graph after cleaning the routes after the nodes
 │   ├── belgium_P.pkl # P-Graph
-│   ├── belgium.pkl # Original L-Graph
-│   └── chicago.pkl # Original L-Graph
-│   └── gtc_data.pkl # Consists of the GTC output│
+│   ├── belgium.pkl # Original L-Graph of Belgian Railways
+│   └── chicago.pkl # Original L-Graph of Chicago Metro
+│   └── gtc_data.pkl # Consists of the GTC output
+│   └── nl_merged.pkl # Cleaned L-Graph of Dutch Railways
 |
 ├── sqlite/
 │   ├── belgium.sqlite 
