@@ -907,6 +907,20 @@ def get_routes_for_mode(g, mode):
     
     return routes
 
+# Method to get the routeids of the subway lines
+def get_routes_for_rail(graph):
+    cur = graph.conn.cursor()
+    #subway = 1
+    rail = 2
+    routes = list()
+    
+    # Get all routes that are of the subway type (type = 1)
+    t_results = cur.execute("SELECT route_I FROM routes WHERE type={rail}".format(rail=rail))
+    route_list = t_results.fetchall()
+    for r in route_list:
+        routes.append(r[0])
+    
+    return routes
 
 # Method to get a corresponding color for each route
 def get_color_per_route(graph, routes):
