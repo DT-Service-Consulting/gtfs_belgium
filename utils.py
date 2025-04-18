@@ -1007,7 +1007,7 @@ def P_space(g, L, mode, start_hour=5, end_hour=24, dir_indicator=None):
             if(g.get_location_name() == 'paris') and (mode_from_string(mode)==2):
                 dir_indicator = 'headsign'
 
-    print("Using %s field as indicator for the direction of routes"%dir_indicator)
+    # print("Using %s field as indicator for the direction of routes"%dir_indicator)
 
     # Loop through all routes
     for iter_n,r in enumerate(routes):
