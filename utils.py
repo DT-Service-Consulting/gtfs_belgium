@@ -1200,6 +1200,102 @@ def get_all_GTC(L_space, P_space, k, wait_pen, transfer_pen):
     return shortest_paths
     
     
+def get_all_GTC_refactored(L_space, P_space, k, wait_pen, transfer_pen):
+    #Precompute all attributes
+    P_veh=nx.get_edge_attributes(P_space,"veh")
+    P_wait=nx.get_edge_attributes(P_space,"avg_wait")
+    L_dur=nx.get_edge_attributes(L_space,"duration_avg")
+    L_dist=nx.get_edge_attributes(L_space,"d")
+
+    # Precompute get routes dirs
+    routes_dirs={}
+    for e in P_veh:
+        routes_dirs[e]=[]
+        for ro in P_veh[e]:
+            for dr in P_veh[e][ro]:
+                routes_dirs[e].append(str(ro) + str(dr))
+        
+    shortest_paths={}
+    paths=dict(nx.all_pairs_dijkstra_path(L_space,weight="duration_avg"))
+
+    for n1 in L_space.nodes:
+        for target in L_space.nodes:
+            # Exclude self-loops
+            if n1 == target:
+                continue
+
+            if n1 not in shortest_paths:
+                shortest_paths[n1]={}
+
+            # Two auxiliary datastructures to store the different shortest paths and corresponding attributes
+            tt_paths = []
+            only_tts = []
+
+            # We consider just one path
+            if target in paths[n1]:
+                k_paths=[paths[n1][target]]
+            else:
+                k_paths=[]
+
+            # Loop through all k-shortest paths and record the different travel time components
+            for p in k_paths:
+                possible_routes=routes_dirs[(p[0],p[1])]
+
+                # Initialize the distance, (in-vehicle) travel time, waiting time and number of transfers as 0
+                dist = 0
+                tt = 0
+                wait = 0
+                tf = 0
+
+                # Record the list of transfer stations, having the origin as the first "transfer station"
+                t_stations = [n1]
+
+                # Check the routes of all successive node pairs in the path,
+                # if all routes of the original edge are not on the next edge, a transfer must have been made OR
+                # if all routes of the previous edge are not on the next edge, a transfer must have been made
+                # Route(s) on that edge become new route.
+                # Also update the in-vehicle travel time for each edge passed.
+                for l1, l2 in zip(p[::1], p[1::1]):
+                    tt += L_dur[(l1,l2)]
+                    dist += L_dist[(l1,l2)]
+                    routes= routes_dirs[(l1,l2)]
+                    possible_routes=set(possible_routes).intersection(set(routes))
+                    if not possible_routes:
+                        possible_routes = routes
+                        tf +=1
+                        t_stations.append(l1)
+
+                # Add the destination node as the final transfer station
+                t_stations.append(target)
+
+                # Change travel time to minutes and round to whole minutes
+                tt = round(tt / 60)
+
+                # Find the waiting times belonging to the different routes taken by looping through all transfer station pairs
+                for t1, t2 in zip(t_stations[::1], t_stations[1::1]):
+                    wait += P_wait[(t1,t2)]
+                    
+                # Round the waiting time to whole minutes
+                wait = round(wait)
+
+                # Calculate the total travel time, take a penalty for the waiting time and per transfer
+                transfer_cost=sum([transfer_pen[i] if i<len(transfer_pen) else transfer_pen[-1] for i in range(tf)])
+                total_tt = tt + wait * wait_pen + transfer_cost
+                only_tts.append(total_tt)
+                tt_paths.append({'path': p, 'GTC': total_tt, 'in_vehicle': tt, 'waiting_time': wait, 'n_transfers': tf, 'traveled_distance': dist})
+
+            if k_paths:
+                # Find the path with the shortest total travel time
+                min_path_tt = min(only_tts)
+                min_path = tt_paths[only_tts.index(min_path_tt)]
+
+                # Record that path as the shortest path belonging to nodes n1 and n2
+                shortest_paths[n1][target] = min_path
+            else:
+                shortest_paths[n1][target]=[]
+
+    return shortest_paths
+    
     
 def average_waiting_time_per_line_per_direction(P):
     routes={}
