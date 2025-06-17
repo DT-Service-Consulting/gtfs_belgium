@@ -4,6 +4,13 @@ from collections import deque
 import time
 from functools import wraps
 import copy
+import sys
+import os
+
+# Add the path to the project root directory
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
+from utils import mode_from_string  # or specific functions
 
 def extract_directed_subgraph(G, target_size, min_edges=3, seed=None):
     if seed is not None:
@@ -309,8 +316,8 @@ def P_space_(g, L, mode, start_hour=5, end_hour=24, dir_indicator=None):
     return P_G
 
 @compute_time
-def eg_(g, L):
-    P = P_space_(g, L,
+def eg_(g, G):
+    P = P_space_(g, G,
                 start_hour=5,
                 end_hour=24,
                 mode="Rail")
