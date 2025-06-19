@@ -18,6 +18,8 @@ import copy
 import os
 import copy
 import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 
 def extract_directed_subgraph(G, target_size, min_edges=3, seed=None):
     if seed is not None:
@@ -336,7 +338,9 @@ def eg_(g, L):
 
     return eg / (L.number_of_nodes() * (L.number_of_nodes() - 1))
 
-@compute_time
+import copy
+import time
+
 def simulate_fixed_node_removal_efficiency(
     g,
     L_graph,
@@ -344,20 +348,37 @@ def simulate_fixed_node_removal_efficiency(
     seed=None,
     verbose=True
 ):
+    """
+    Simulates the impact of fixed sequential node removals on the global efficiency of a graph.
+    
+    Parameters:
+        g (networkx.Graph): The original graph used as a reference.
+        L_graph (networkx.Graph): The subgraph from which nodes will be removed.
+        num_to_remove (int): Number of nodes to remove.
+        seed (int, optional): Random seed for node selection.
+        verbose (bool): Whether to print progress and debug information.
+    
+    Returns:
+        efficiencies (list): Normalized global efficiency after each removal.
+        num_removed (list): Step count corresponding to each removal.
+        removed_nodes (list): The exact nodes removed in order.
+        removal_times (list): Cumulative time (in seconds) taken after each removal.
+    """
     G = copy.deepcopy(L_graph)
-
-    # Compute original efficiency once before node removal
     original_efficiency = eg_(g, G)
+    
     if verbose:
         print(f"Original efficiency: {original_efficiency:.4f}")
 
     removal_nodes = get_random_removal_nodes(G, num_to_remove, seed)
+    
     if verbose:
         print(f"Random node removal order (seed={seed}): {removal_nodes}")
 
     efficiencies = []
     num_removed = []
     removed_nodes = []
+    removal_times = []
 
     for i, node_to_remove in enumerate(removal_nodes):
         if node_to_remove not in G:
@@ -367,6 +388,8 @@ def simulate_fixed_node_removal_efficiency(
 
         if verbose:
             print(f"\nIteration {i+1}: Removing node → {node_to_remove}")
+
+        start_time = time.perf_counter()
 
         G.remove_node(node_to_remove)
         removed_nodes.append(node_to_remove)
@@ -381,11 +404,15 @@ def simulate_fixed_node_removal_efficiency(
         normalized_eff = eff / original_efficiency
         efficiencies.append(normalized_eff)
         num_removed.append(i + 1)
+        elapsed = time.perf_counter() - start_time
+        removal_times.append(round(elapsed, 4))
 
         if verbose:
-            print(f"Removed {i+1} node(s) → Normalized Efficiency: {normalized_eff:.4f}\n")
+            print(f"Removed {i+1} node(s) → Normalized Efficiency: {normalized_eff:.4f}")
+            print(f"Time elapsed: {elapsed:.4f} seconds\n")
 
-    return efficiencies, num_removed, removed_nodes
+    return efficiencies, num_removed, removed_nodes, removal_times
+
 
 
 def plot_efficiency_results(num_removed, efficiencies, title="Impact of Node Removal on Network Efficiency (Normalized)"):
@@ -406,3 +433,160 @@ def plot_efficiency_results(num_removed, efficiencies, title="Impact of Node Rem
     plt.tight_layout()
     plt.show()
 
+
+import time
+import pandas as pd
+
+def run_removal_simulations(g, subgraphs_by_size, num_to_remove=5, seed=42, verbose=False):
+    """
+    Run node removal simulations across all subgraphs grouped by size and collect efficiency and timing metrics.
+
+    Parameters:
+        g (networkx.Graph): The original graph used to compute baseline efficiency.
+        subgraphs_by_size (dict): A dictionary where each key is a subgraph size and each value is a list of subgraphs (networkx.Graph).
+        num_to_remove (int): Number of nodes to remove from each subgraph. Default is 5.
+        seed (int): Random seed for reproducibility. Default is 42.
+        verbose (bool): Whether to print detailed output during simulation. Default is False.
+
+    Returns:
+        pd.DataFrame: A DataFrame where each row corresponds to one subgraph simulation and contains:
+            - graph_index: Index of the subgraph within its group
+            - num_nodes: Number of nodes in the subgraph
+            - num_edges: Number of edges in the subgraph
+            - runtime_seconds: Total time taken for the simulation
+            - original_efficiency: Efficiency before any node removal
+            - final_efficiency: Efficiency after all removals
+            - efficiency_after_each_removal: List of normalized efficiencies after each removal (excluding original)
+            - removed_nodes: List of removed node IDs
+            - removal_times: List of cumulative times after each removal
+            - eff_after_{i}: Normalized efficiency after i-th removal, where i=0 is the original
+    """
+    results = []
+
+    for size, graphs in subgraphs_by_size.items():
+        for idx, L in enumerate(graphs):
+            start = time.perf_counter()
+            try:
+                efficiencies, num_removed, removed_nodes, removal_times = simulate_fixed_node_removal_efficiency(
+                    g,
+                    L_graph=L,
+                    num_to_remove=num_to_remove,
+                    seed=seed,
+                    verbose=verbose
+                )
+            except Exception as e:
+                print(f"Error on graph size {size}, index {idx}: {e}")
+                continue
+            end = time.perf_counter()
+            elapsed = end - start
+
+            result = {
+                "graph_index": idx,
+                "num_nodes": L.number_of_nodes(),
+                "num_edges": L.number_of_edges(),
+                "runtime_seconds": round(elapsed, 3),
+                "original_efficiency": efficiencies[0] if efficiencies else None,
+                "final_efficiency": efficiencies[-1] if efficiencies else None,
+                "efficiency_after_each_removal": efficiencies[1:] if len(efficiencies) > 1 else [],
+                "removed_nodes": removed_nodes,
+                "removal_times": removal_times
+            }
+
+            for i, eff in enumerate(efficiencies):
+                result[f"eff_after_{i}"] = eff
+
+            results.append(result)
+
+    return pd.DataFrame(results)
+
+
+
+def plot_single_efficiency(row):
+    """
+    Plot the efficiency drop across node removals for a single subgraph.
+
+    Parameters:
+    row (pd.Series): A row from the DataFrame containing the following keys:
+        - 'original_efficiency': efficiency before any node removal
+        - 'efficiency_after_each_removal': list of efficiency values after each node is removed
+        - 'num_nodes': number of nodes in the subgraph
+        - 'graph_index': index of the subgraph within its group
+
+    The function combines the original efficiency with the efficiency after each removal,
+    and plots them as a line chart with points for visual tracking of efficiency drop.
+    """
+    # Full efficiency list: original + after each removal
+    all_efficiencies = [row['original_efficiency']] + row['efficiency_after_each_removal']
+    
+    plt.figure(figsize=(6, 4))
+    plt.plot(range(len(all_efficiencies)), all_efficiencies, marker='o')
+    plt.title(f"Efficiency Drop – Graph Size {row['num_nodes']} Index {row['graph_index']}")
+    plt.xlabel("Nodes Removed")
+    plt.ylabel("Efficiency")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+def compute_avg_runtime_by_num_nodes(df_results):
+    """
+    Compute the average runtime for subgraphs grouped by number of nodes.
+
+    Parameters:
+    df_results (pd.DataFrame): DataFrame containing at least 'num_nodes' and 'runtime_seconds' columns.
+
+    Returns:
+    pd.DataFrame: A DataFrame with two columns:
+        - 'num_nodes': number of nodes in each subgraph
+        - 'runtime_seconds': average runtime (in seconds) to process graphs of that size
+    """
+    return (
+        df_results.groupby("num_nodes")["runtime_seconds"]
+        .mean()
+        .reset_index()
+        .sort_values("num_nodes")
+    )
+
+
+def plot_removal_time_vs_steps(row):
+    """
+    Plot cumulative runtime and individual removal times against number of node removals for a single subgraph,
+    with two side-by-side subplots. Also displays a table of removed nodes and corresponding removal times.
+    
+    Parameters:
+    row (pd.Series): Row from df_results containing 'removal_times' and 'removed_nodes'.
+    """
+    if "removal_times" not in row or not row["removal_times"]:
+        print("No timing data available for this row.")
+        return
+
+    cumulative_times = row["removal_times"]
+    steps = list(range(1, len(cumulative_times) + 1))
+    individual_times = np.diff([0] + cumulative_times)
+
+    # Display tabular data
+    df = pd.DataFrame({
+        "Node Removed": row["removed_nodes"],
+        "Time Elapsed (s)": individual_times
+    })
+    print("\nNode Removal Details:\n", df)
+
+    # Plotting
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Left: cumulative time line plot
+    ax1.plot(steps, cumulative_times, marker='o', color='b')
+    ax1.set_title(f"Cumulative Removal Time\nGraph Size {row['num_nodes']} Index {row['graph_index']}")
+    ax1.set_xlabel("Number of Nodes Removed")
+    ax1.set_ylabel("Cumulative Time (seconds)")
+    ax1.grid(True)
+
+    # Right: individual removal time bar plot
+    ax2.bar(steps, individual_times, color='orange', alpha=0.7)
+    ax2.set_title("Individual Removal Time per Node")
+    ax2.set_xlabel("Node Removal Step")
+    ax2.set_ylabel("Time per Removal (seconds)")
+    ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()
